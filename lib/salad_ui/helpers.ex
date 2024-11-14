@@ -1,6 +1,7 @@
 defmodule SaladUI.Helpers do
   @moduledoc false
   import Phoenix.Component
+  use Phoenix.Component
 
   @doc """
   Prepare input assigns for use in a form. Extract required attribute from the Form.Field struct and update current assigns.
@@ -46,6 +47,16 @@ defmodule SaladUI.Helpers do
       false -> false
       _ -> false
     end
+  end
+
+  @doc """
+  Normalize id to be used in HTML id attribute
+  It will replace all non-alphanumeric characters with `-` and downcase the string
+  """
+  def id(id) do
+    id
+    |> String.replace(~r/[^a-zA-Z0-9]/, "-")
+    |> String.downcase()
   end
 
   @doc """
@@ -121,6 +132,135 @@ defmodule SaladUI.Helpers do
       "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50"
 
     "#{shared_classes} #{variation_classes}"
+  end
+
+  @doc """
+  Common function for building variant
+
+  ## Examples
+
+  ```elixir
+  config =
+  %{
+    variants: %{
+      variant: %{
+        default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        outline:
+          "bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
+      },
+      size: %{
+        default: "h-8 text-sm",
+        sm: "h-7 text-xs",
+        lg: "h-12 text-sm group-data-[collapsible=icon]:!p-0",
+      },
+    },
+    default_variants: %{
+      variant: "default",
+      size: "default",
+    },
+  }
+
+  class_input = %{variant: "outline", size: "lg"}
+  variant_class(config, class_input)
+  ```
+
+  """
+  def variant_class(config, class_input) do
+    variants = Map.get(config, :variants, %{})
+    default_variants = Map.get(config, :default_variants, %{})
+
+    variants
+    |> Map.keys()
+    |> Enum.map(fn variant_key ->
+      # Get the variant value from input or use default
+      variant_value =
+        Map.get(class_input, variant_key) ||
+          Map.get(default_variants, variant_key)
+
+      # Get the variant options map
+      variant_options = Map.get(variants, variant_key, %{})
+
+      # Get the CSS classes for this variant value
+      Map.get(variant_options, String.to_existing_atom(variant_value))
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(" ")
+  end
+
+  @doc """
+  This function build css style string from map of css style
+
+  ## Examples
+
+  ```elixir
+  css_style = %{
+    "background-color": "red",
+    "color": "white",
+    "font-size": "16px",
+  }
+
+  style(css_style)
+
+  # => "background-color: red; color: white; font-size: 16px;"
+  ```
+  """
+  def style(css_map) do
+    Enum.map_join(css_map, "; ", fn {k, v} -> "#{k}: #{v}" end) <> ";"
+  end
+
+  @doc """
+  This function build js script to invoke JS stored in given attribute.
+  Similar to JS.exec/2 but this function target the nearest ancestor element.
+
+  ## Examples
+
+  ```heex
+  <button click={exec_closest("phx-hide-sheet", ".ancestor_class")}>
+    Close
+  </button>
+  ```
+  """
+  def exec_closest(attribute, ancestor_selector) do
+    """
+    var el = this.closest("#{ancestor_selector}"); liveSocket.execJS(el, el.getAttribute("#{attribute}"));
+    """
+  end
+
+@doc """
+  Generates a dynamically named HTML tag.
+
+  Raises an `ArgumentError` if the tag name is found to be unsafe HTML.
+
+  [INSERT LVATTRDOCS]
+
+  ## Examples
+
+  ```heex
+  <.dynamic_tag name="input" type="text"/>
+  ```
+
+  ```html
+  <input type="text"/>
+  ```
+
+  ```heex
+  <.dynamic_tag name="p">content</.dynamic_tag>
+  ```
+
+  ```html
+  <p>content</p>
+  ```
+  """
+  def dynamic(%{as: name} = assigns) when is_function(name, 1) do
+        assigns = Map.delete(assigns, :as)
+    name.(assigns)
+  end
+
+  def dynamic(assigns) do
+    name = assigns[:as] || "div"
+    assigns = Map.delete(assigns, :as)
+    |> assign(:name, name)
+    dynamic_tag(assigns)
   end
 
   # Translate error message
